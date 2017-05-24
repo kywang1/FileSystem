@@ -11,23 +11,22 @@
 
 typedef struct root_entry{
 	char filename[16];
-	int size;
-	short index;
+	uint32_t size;
+	uint16_t index;
 }root_entry;
 
 
 typedef struct __attribute__((__packed__)) FAT{
 	int used;
-
 }FAT;
 
 typedef struct __attribute__((__packed__)) SB{
-	uint8_t *signature;
-	short *block_total;
-	short *root_index;
-	short *start_index;
-	short *data_blocks;
-	char *FAT_blocks;
+	uint64_t signature;
+	uint16_t block_total;
+	uint16_t root_index;
+	uint16_t start_index;
+	uint16_t data_blocks;
+	uint8_t FAT_blocks;
 }SB;
 
 typedef struct __attribute__((__packed__)) RD{
@@ -43,63 +42,22 @@ RD* rd;
 
 int fs_mount(const char *diskname)
 {
-	void *block = malloc(sizeof(4096)) ;
-	short block_count;
 
 	if(block_disk_open(diskname) == -1)
 	{
 		return -1;
 	}
 
-	block_count = block_disk_count();
-
 	sb = (SB*)malloc(sizeof(SB));
 	fat = (FAT*)malloc(sizeof(FAT));
 	rd = (RD*)malloc(sizeof(RD));
 
-	block_read(0, block);
-
-	rd->used = 0;
 	fat->used = 1;
-	
-	printf("%x\n",*((unsigned char*)block+5));
-	printf("%hu\n",*((short*)block+4)); //amount of data blocks?
 
-	sb->signature = (uint8_t*)(block);
-	sb->block_total = &block_count;
-	sb->root_index = (short*)(block + 10);
-	sb->start_index = (short*)(block + 12);
-	sb->data_blocks = (short*)(block + 14);
-	sb->FAT_blocks = (char*)(block + 16);
 
-	int i = 0;
-	while(i < sizeof(block)){
-		if(i == 0){
-			printf("%s\n",(char*)(block) );
-		}
-		else if( i == 1){
-			printf("%hu\n",*(short*)(block) );
-		}
-		else if(i == 5){
-			printf("%d\n",*(int*)(block) );
-		}
-		else{
-			printf("%d\n",*(int*)(block));
-		}
-		i++;
-		block++;
-	}
-	printf("%d\n",i );
+	block_read(0, (void*)sb);
 
-	printf("total_blk_count=%hu\n", *sb->block_total);
-	printf("fat_blk_count=%d\n", *sb->FAT_blocks);
-	printf("signature=%s\n", sb->signature);
-	/*
-	if(block_count != *(sb->data_blocks)) // || strcmp(sig2, sig) == 0)
-	{
-		return -1;
-	}	
-	*/
+
 	return 0;
 }
 
@@ -111,12 +69,12 @@ int fs_umount(void)
 int fs_info(void)
 {
 	puts("FS Info:");
-	printf("total_blk_count=%hu\n", *sb->block_total);
-	printf("fat_blk_count=%hu\n", *sb->FAT_blocks);
+	printf("total_blk_count=%hu\n",sb->block_total);
+	printf("fat_blk_count=%hu\n", sb->FAT_blocks);
 	puts("rdir_blk=1\n"); 						// come back to this
 	puts("data_blk=1\n"); 						// come back to this
-	printf("data_blk_count=%hu\n", *sb->data_blocks);
-	printf("fat_free_ratio=%hu/%hu\n", *(sb->data_blocks) - fat->used, *sb->data_blocks);
+	printf("data_blk_count=%hu\n", sb->data_blocks);
+	printf("fat_free_ratio=%hu/%hu\n", sb->data_blocks - fat->used, sb->data_blocks);
 	printf("rdir_free_ratio=%hu/128\n", 128 - rd->used);
 	return 0;
 }
