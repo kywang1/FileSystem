@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-
 #include <fs.h>
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))

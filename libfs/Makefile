@@ -1,9 +1,9 @@
 # Libuthread Makefile
-targets := libfs
+targets := libfs.a
 objs    := disk.o fs.o
 
 CC      := gcc 
-CFLAGS  := -Wall -Werror 
+CFLAGS  := -c -Wall -Werror 
 CFLAGS  += -g 
 PANDOC  := pandoc
 
@@ -15,11 +15,11 @@ all: $(targets)
 
 deps := $(patsubst %.o,%.d,$(objs)) 
 -include $(deps) 
-DEPFLAGS = -MMD -MF $(@:.o=.d)
+DEPFLAGS = -c -MMD -MF $(@:.o=.d)
 
-libfs: $(objs)     
+libfs.a: $(objs)     
 	@echo "CC $@"     
-	ar rcs libfs $(objs)  
+	ar rcs libfs.a $(objs)  
 
 %.o: %.c     
 	@echo "CC $@"     

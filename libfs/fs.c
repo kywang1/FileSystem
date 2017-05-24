@@ -43,8 +43,8 @@ RD* rd;
 
 int fs_mount(const char *diskname)
 {
-	void *block = NULL;
-	int block_count;
+	void *block = malloc(sizeof(4096)) ;
+	short block_count;
 
 	if(block_disk_open(diskname) == -1)
 	{
@@ -61,19 +61,45 @@ int fs_mount(const char *diskname)
 
 	rd->used = 0;
 	fat->used = 1;
+	
+	printf("%x\n",*((unsigned char*)block+5));
+	printf("%hu\n",*((short*)block+4)); //amount of data blocks?
 
-	sb->signature = (uint8_t*)&(block);
-	sb->block_total = (short*)&(block + 8);
-	sb->root_index = (short*)&(block + 10);
-	sb->start_index = *(short*)(block + 12);
-	sb->data_blocks = *(short*)(block + 14);
-	sb->FAT_blocks = *(char*)(block + 16);
+	sb->signature = (uint8_t*)(block);
+	sb->block_total = &block_count;
+	sb->root_index = (short*)(block + 10);
+	sb->start_index = (short*)(block + 12);
+	sb->data_blocks = (short*)(block + 14);
+	sb->FAT_blocks = (char*)(block + 16);
 
-	if(block_count != sb->data_blocks) // || strcmp(sig2, sig) == 0)
+	int i = 0;
+	while(i < sizeof(block)){
+		if(i == 0){
+			printf("%s\n",(char*)(block) );
+		}
+		else if( i == 1){
+			printf("%hu\n",*(short*)(block) );
+		}
+		else if(i == 5){
+			printf("%d\n",*(int*)(block) );
+		}
+		else{
+			printf("%d\n",*(int*)(block));
+		}
+		i++;
+		block++;
+	}
+	printf("%d\n",i );
+
+	printf("total_blk_count=%hu\n", *sb->block_total);
+	printf("fat_blk_count=%d\n", *sb->FAT_blocks);
+	printf("signature=%s\n", sb->signature);
+	/*
+	if(block_count != *(sb->data_blocks)) // || strcmp(sig2, sig) == 0)
 	{
 		return -1;
 	}	
-
+	*/
 	return 0;
 }
 
@@ -84,13 +110,13 @@ int fs_umount(void)
 
 int fs_info(void)
 {
-	puts("FS Info:\n");
-	printf("total_blk_count=%hu\n", sb->block_total);
-	printf("fat_blk_count=%hu\n", sb->FAT_blocks);
+	puts("FS Info:");
+	printf("total_blk_count=%hu\n", *sb->block_total);
+	printf("fat_blk_count=%hu\n", *sb->FAT_blocks);
 	puts("rdir_blk=1\n"); 						// come back to this
 	puts("data_blk=1\n"); 						// come back to this
-	printf("data_blk_count=%hu\n", sb->data_blocks);
-	printf("fat_free_ratio=%hu/%hu\n", sb->data_blocks - fat->used, sb->data_blocks);
+	printf("data_blk_count=%hu\n", *sb->data_blocks);
+	printf("fat_free_ratio=%hu/%hu\n", *(sb->data_blocks) - fat->used, *sb->data_blocks);
 	printf("rdir_free_ratio=%hu/128\n", 128 - rd->used);
 	return 0;
 }
@@ -148,6 +174,7 @@ int fs_delete(const char *filename)
 
 int fs_ls(void)
 {
+	printf("ls");
 	return 0;
 }
 
