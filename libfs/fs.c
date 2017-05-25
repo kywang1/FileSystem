@@ -13,6 +13,7 @@ typedef struct __attribute__((__packed__)) root_entry{
 	char filename[16];
 	uint32_t size;
 	uint16_t index;
+	char padding[10];
 }root_entry;
 
 
@@ -31,14 +32,16 @@ typedef struct __attribute__((__packed__)) SB{
 }SB;
 
 typedef struct __attribute__((__packed__)) RD{
-	char test[2816];
-	root_entry *root_array[128];
-	int used;
+	//char test[2816];
+	root_entry root_array[128];
+
 }RD;
 
+int rootUsed = 0;
 FAT* fat[4];
 SB* sb;
 RD* rd;
+
 
 int fs_mount(const char *diskname)
 {
@@ -49,6 +52,7 @@ int fs_mount(const char *diskname)
 	}
 
 	sb = (SB*)malloc(sizeof(SB));
+
 	rd = (RD*)malloc(sizeof(RD));
 
 	block_read(0, (void*)sb);
@@ -59,15 +63,7 @@ int fs_mount(const char *diskname)
 		block_read(1 + i,(void*)(fat[i]->fat_array));
 	}
 
-	block_read(sb->root_index, (void*)(rd->test));
-
-	for(int i = 0; i < 128; i++)
-	{
-		rd->root_array[i] = (root_entry*)malloc(sizeof(root_entry));
-		memcpy(rd->root_array[i], rd->test + (i * 22), 22);
-	}
-
-	fat[0]->used = 1;
+	block_read(sb->root_index, (void*)rd->root_array);
 
 	return 0;
 }
@@ -79,6 +75,7 @@ int fs_umount(void)
 		free(sb);
 	}
 */
+	
 	for(int i = 0; i < 4; i++)
 	{
 		if(fat[i])
@@ -87,18 +84,10 @@ int fs_umount(void)
 		}
 		i++;
 	}
-
-	for(int i = 0; i < 128; i++)
-	{
-		if(rd->root_array[i])
-		{
-			free(rd->root_array[i]);
-		}
-
-		i++;
-	}
-
-//	free(rd);	
+	
+	
+	//	free(rd);
+	
 
 	return(block_disk_close());
 }
@@ -112,13 +101,13 @@ int fs_info(void)
 	printf("data_blk=%hu\n", sb->start_index); 						// come back to this
 	printf("data_blk_count=%hu\n", sb->data_blocks);
 	printf("fat_free_ratio=%hu/%hu\n", (sb->data_blocks - fat[0]->used), sb->data_blocks);
-	printf("rdir_free_ratio=%hu/128\n", 128 - rd->used);
+	printf("rdir_free_ratio=%hu/128\n", 128 - rootUsed);			//loop through disk to find how many root directories are free
 	return 0;
 }
 
 int fs_create(const char *filename)
 {
-
+	
 	if(strlen(filename) > 16)
 	{
 		return -1;
@@ -129,22 +118,22 @@ int fs_create(const char *filename)
 
 	for(; i < 128; i++)
 	{
-		if(rd->root_array[i]->filename[0] != 0)
+		if(rd->root_array[i].filename[0] != 0)
 		{
 			used_count++;
-			if(strcmp(rd->root_array[i]->filename, filename) == 0)
+			if(strcmp(rd->root_array[i].filename, filename) == 0)
 			{
 				return -1;
 			}
 
-			if(used_count == rd->used)
+			if(used_count == rootUsed)
 			{
 				break;
 			}
 		}
 	}
 
-	while(rd->root_array[free_index]->filename[0] != 0)
+	while(rd->root_array[free_index].filename[0] != 0)
 	{
 		free_index++;
 
@@ -155,17 +144,19 @@ int fs_create(const char *filename)
 	}
 
 
-	rd->root_array[free_index]->size = 0;
-	rd->root_array[free_index]->index = FAT_EOC;
-	strcpy(rd->root_array[free_index]->filename, filename);
-	rd->used++;
-
+	rd->root_array[free_index].size = 0;
+	rd->root_array[free_index].index = FAT_EOC;
+	strcpy(rd->root_array[free_index].filename, filename);
+	printf("new filename: %s\n", rd->root_array[free_index].filename);
+	rootUsed++;
+	block_write(sb->root_index,rd);
 
 	return 0;
 }
 
 int fs_delete(const char *filename)
 {
+
 	if(strlen(filename) > 16)
 	{
 		return -1;
@@ -175,41 +166,49 @@ int fs_delete(const char *filename)
 
 	for(; i < 128; i++)
 	{
-		if(rd->root_array[i]->filename[0] != 0)
+		printf("%s\n", rd->root_array[i].filename);
+		printf("%s\n", filename);
+		if(rd->root_array[i].filename[0] != 0)
 		{
-			if(strcmp(rd->root_array[i]->filename, filename) == 0)
+			printf("%s\n", rd->root_array[i].filename);
+			printf("%s\n", filename);
+			if(strcmp(rd->root_array[i].filename, filename) == 0)
 			{
-				memset(rd->root_array[i]->filename, 0, 16);
-				rd->used--;
+				printf("found\n");
+				memset(rd->root_array[i].filename, 0, 16);
+				rootUsed--;
 				return 0;
 			}
 
-			if(used_count == rd->used)
+			if(used_count == rootUsed)
 			{
 				break;
 			}
 		}
 	}
-
+	
+	block_write(sb->root_index,rd);
 	return 0;
 }
 
 int fs_ls(void)
 {
+	
 	int used = 0;
 	printf("FS Ls:\n");
 	for(int i = 0; i < 128; i++)
 	{
-		if(rd->root_array[i]->filename[0] != 0)
+		if(rd->root_array[i].filename[0] != 0)
 		{
-			printf("file: %s, size: %d, data_blk: %d\n", rd->root_array[i]->filename, rd->root_array[i]->size, rd->root_array[i]->index);
+			printf("file: %s, size: %d, data_blk: %d\n", rd->root_array[i].filename, rd->root_array[i].size, rd->root_array[i].index);
 			used++;
 		}
-		if(used == rd->used)
+		if(used == rootUsed)
 		{
 			break;
 		}
 	}
+	
 	return 0;
 }
 
