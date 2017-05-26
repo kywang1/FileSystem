@@ -37,11 +37,19 @@ typedef struct __attribute__((__packed__)) RD{
 
 }RD;
 
+typedef struct FD
+{
+	int fd;
+	int offset;
+	root_entry* file;
+}FD;
+
+int FD_Open;
 int rootUsed;
 FAT* fat[4];
+FD* FD_Array[32];
 SB* sb;
 RD* rd;
-
 
 int fs_mount(const char *diskname)
 {
@@ -72,7 +80,15 @@ int fs_mount(const char *diskname)
 			rootUsed++;
 		}
 	}
-	printf("%d\n",rootUsed );
+
+	//Initialize FD_Array
+	FD_Open = 0;
+	for(int i = 0 ; i < 32; i++){
+		FD_Array[i] = (FD*)malloc(sizeof(FD));
+		FD_Array[i]->fd = -1;
+		FD_Array[i]->offset = -1;
+		FD_Array[i]->file = NULL;
+	}
 
 	return 0;
 }
@@ -123,9 +139,8 @@ int fs_create(const char *filename)
 	}
 
 	int free_index = 0;
-	int i = 0;
 
-	for(; i < 128; i++)
+	for(int i = 0; i < 128; i++)
 	{
 		if(rd->root_array[i].filename[0] != 0)
 		{
@@ -206,21 +221,89 @@ int fs_ls(void)
 
 int fs_open(const char *filename)
 {
-	return 0;
+	if(strlen(filename) > 16){
+		return -1;
+	}
+
+	int free_index = 0;
+
+	for(; free_index < 32; free_index++)
+	{
+		if(FD_Array[free_index]->fd == -1)
+			break;
+	}
+
+	if(free_index == 32)
+	{
+		return -1;
+	}
+
+
+	for(int i = 0; i < 128; i++)
+	{
+		if(rd->root_array[i].filename[0] != 0)
+		{
+			if(strcmp(rd->root_array[i].filename, filename) == 0)
+			{
+				FD_Array[free_index]->fd = free_index;
+				FD_Array[free_index]->offset = 0;
+				FD_Array[free_index]->file = &(rd->root_array[i]);
+				FD_Open++;
+				return free_index;
+			}
+		}
+	}
+
+	return -1;
 }
 
 int fs_close(int fd)
 {
+	if(fd < 0 || fd >= 32)
+	{
+		return -1;
+	}
+
+	if(FD_Array[fd]->fd == -1)
+	{
+		return -1;
+	}
+
+	FD_Array[fd]->fd = -1;
+	FD_Array[fd]->offset = -1;
+	FD_Array[fd]->file = NULL;
 	return 0;
 }
 
 int fs_stat(int fd)
 {
-	return 0;
+	if(fd < 0 || fd >= 32)
+	{
+		return -1;
+	}
+
+	if(FD_Array[fd]->fd == -1)
+	{
+		return -1;
+	}
+
+	return FD_Array[fd]->file->size;
 }
 
 int fs_lseek(int fd, size_t offset)
 {
+	if(fd < 0 || fd >= 32)
+	{
+		return -1;
+	}
+
+	if(FD_Array[fd]->fd == -1)
+	{
+		return -1;
+	}
+
+	FD_Array[fd]->offset = offset;		
+
 	return 0;
 }
 
