@@ -13,7 +13,6 @@ typedef struct __attribute__((__packed__)) root_entry{
 	char filename[16];
 	uint32_t size;
 	uint16_t index;
-	char padding[10];
 }root_entry;
 
 
