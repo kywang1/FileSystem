@@ -37,7 +37,7 @@ typedef struct __attribute__((__packed__)) RD{
 
 }RD;
 
-int rootUsed = 0;
+int rootUsed;
 FAT* fat[4];
 SB* sb;
 RD* rd;
@@ -64,6 +64,15 @@ int fs_mount(const char *diskname)
 	}
 
 	block_read(sb->root_index, (void*)rd->root_array);
+	rootUsed = 0;
+	for(int i = 0; i < 128; i++)
+	{
+		if(rd->root_array[i].filename[0] != 0)
+		{
+			rootUsed++;
+		}
+	}
+	printf("%d\n",rootUsed );
 
 	return 0;
 }
@@ -114,22 +123,17 @@ int fs_create(const char *filename)
 	}
 
 	int free_index = 0;
-	int i = 0, used_count = 0;
+	int i = 0;
 
 	for(; i < 128; i++)
 	{
 		if(rd->root_array[i].filename[0] != 0)
 		{
-			used_count++;
 			if(strcmp(rd->root_array[i].filename, filename) == 0)
 			{
 				return -1;
 			}
 
-			if(used_count == rootUsed)
-			{
-				break;
-			}
 		}
 	}
 
@@ -162,50 +166,38 @@ int fs_delete(const char *filename)
 		return -1;
 	}
 
-	int i = 0, used_count = 0;
+	int i = 0;
 
 	for(; i < 128; i++)
 	{
-		printf("%s\n", rd->root_array[i].filename);
-		printf("%s\n", filename);
+//		printf("%s\n", rd->root_array[i].filename);
+//		printf("%s\n", filename);
 		if(rd->root_array[i].filename[0] != 0)
 		{
-			printf("%s\n", rd->root_array[i].filename);
-			printf("%s\n", filename);
+//			printf("%s\n", rd->root_array[i].filename);
+//			printf("%s\n", filename);
 			if(strcmp(rd->root_array[i].filename, filename) == 0)
 			{
 				printf("found\n");
 				memset(rd->root_array[i].filename, 0, 16);
-				rootUsed--;
+				block_write(sb->root_index,rd);
 				return 0;
-			}
-
-			if(used_count == rootUsed)
-			{
-				break;
 			}
 		}
 	}
 	
-	block_write(sb->root_index,rd);
-	return 0;
+	
+	return -1;
 }
 
 int fs_ls(void)
 {
-	
-	int used = 0;
 	printf("FS Ls:\n");
 	for(int i = 0; i < 128; i++)
 	{
 		if(rd->root_array[i].filename[0] != 0)
 		{
 			printf("file: %s, size: %d, data_blk: %d\n", rd->root_array[i].filename, rd->root_array[i].size, rd->root_array[i].index);
-			used++;
-		}
-		if(used == rootUsed)
-		{
-			break;
 		}
 	}
 	
