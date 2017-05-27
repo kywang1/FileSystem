@@ -13,6 +13,7 @@ typedef struct __attribute__((__packed__)) root_entry{
 	char filename[16];
 	uint32_t size;
 	uint16_t index;
+	char padding[10];
 }root_entry;
 
 
@@ -210,6 +211,7 @@ int fs_create(const char *filename)
 	rd->root_array[free_index].index = FAT_EOC;
 	strcpy(rd->root_array[free_index].filename, filename);
 	printf("new filename: %s\n", rd->root_array[free_index].filename);
+	printf("rd->root_array[free_index].filename: %s\n",rd->root_array[free_index].filename );
 	rootFree--;
 	block_write(sb->root_index,rd);
 
