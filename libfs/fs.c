@@ -17,8 +17,7 @@ typedef struct __attribute__((__packed__)) root_entry{
 
 
 typedef struct __attribute__((__packed__)) FAT{			// max fat block count is 4 since max block count is 8192
-	uint16_t fat_array[4096];
-	int used;
+	uint16_t fat_entry;
 }FAT;
 
 typedef struct __attribute__((__packed__)) SB{
@@ -31,7 +30,6 @@ typedef struct __attribute__((__packed__)) SB{
 }SB;
 
 typedef struct __attribute__((__packed__)) RD{
-	//char test[2816];
 	root_entry root_array[128];
 
 }RD;
@@ -44,14 +42,17 @@ typedef struct FD
 }FD;
 
 int FD_Open;
-int rootUsed;
-FAT* fat[4];
+int rootFree;
+int fatFree;
+FAT* fat;
 FD* FD_Array[32];
 SB* sb;
 RD* rd;
 
 int fs_mount(const char *diskname)
 {
+	rootFree = 0;
+	fatFree = 0;
 
 	if(block_disk_open(diskname) == -1)
 	{
@@ -63,20 +64,38 @@ int fs_mount(const char *diskname)
 	rd = (RD*)malloc(sizeof(RD));
 
 	block_read(0, (void*)sb);
+
+	fat = (FAT*)malloc(BLOCK_SIZE * sb->FAT_blocks);
 	
-	for(int i = 0; i < sb->FAT_blocks; i++)
+/*	for(int i = 0; i < sb->FAT_blocks; i++)
 	{
 		fat[i] = (FAT*)malloc(sizeof(FAT));
 		block_read(1 + i,(void*)(fat[i]->fat_array));
 	}
+*/
+
+	for(int i = 0; i < sb->FAT_blocks; i++)
+	{
+		block_read(1 + i,(void*)fat + i*(BLOCK_SIZE));
+	}
+
+
+
+	for(int i = 0; i < sb->data_blocks; i++)
+	{
+		if(fat[i].fat_entry == 0)
+		{
+			fatFree++;
+		}
+	}
 
 	block_read(sb->root_index, (void*)rd->root_array);
-	rootUsed = 0;
+
 	for(int i = 0; i < 128; i++)
 	{
-		if(rd->root_array[i].filename[0] != 0)
+		if(rd->root_array[i].filename[0] == 0)
 		{
-			rootUsed++;
+			rootFree++;
 		}
 	}
 
@@ -98,20 +117,17 @@ int fs_umount(void)
 	{
 		free(sb);
 	}
-*/
-	
-	for(int i = 0; i < 4; i++)
+
+	if(fat)
 	{
-		if(fat[i])
-		{
-			free(fat[i]);
-		}
-		i++;
+		free(fat);
 	}
 	
-	
-	//	free(rd);
-	
+	if(fat)
+	{
+		free(rd);
+	}
+*/	
 
 	return(block_disk_close());
 }
@@ -124,8 +140,8 @@ int fs_info(void)
 	printf("rdir_blk=%hu\n", sb->root_index); 						// come back to this
 	printf("data_blk=%hu\n", sb->start_index); 						// come back to this
 	printf("data_blk_count=%hu\n", sb->data_blocks);
-	printf("fat_free_ratio=%hu/%hu\n", (sb->data_blocks - fat[0]->used), sb->data_blocks);
-	printf("rdir_free_ratio=%hu/128\n", 128 - rootUsed);			//loop through disk to find how many root directories are free
+	printf("fat_free_ratio=%hu/%hu\n", fatFree, sb->data_blocks);
+	printf("rdir_free_ratio=%hu/128\n", rootFree);			//loop through disk to find how many root directories are free
 	return 0;
 }
 
@@ -166,7 +182,7 @@ int fs_create(const char *filename)
 	rd->root_array[free_index].index = FAT_EOC;
 	strcpy(rd->root_array[free_index].filename, filename);
 	printf("new filename: %s\n", rd->root_array[free_index].filename);
-	rootUsed++;
+	rootFree--;
 	block_write(sb->root_index,rd);
 
 	return 0;
@@ -184,15 +200,10 @@ int fs_delete(const char *filename)
 
 	for(; i < 128; i++)
 	{
-//		printf("%s\n", rd->root_array[i].filename);
-//		printf("%s\n", filename);
 		if(rd->root_array[i].filename[0] != 0)
 		{
-//			printf("%s\n", rd->root_array[i].filename);
-//			printf("%s\n", filename);
 			if(strcmp(rd->root_array[i].filename, filename) == 0)
 			{
-				printf("found\n");
 				memset(rd->root_array[i].filename, 0, 16);
 				block_write(sb->root_index,rd);
 				return 0;
@@ -308,10 +319,49 @@ int fs_lseek(int fd, size_t offset)
 
 int fs_write(int fd, void *buf, size_t count)
 {
+	if(fd < 0 || fd >= 32)
+	{
+		return -1;
+	}
+
 	return 0;
 }
 
 int fs_read(int fd, void *buf, size_t count)
 {
-	return 0;
+	int next, start;
+	char* buffer = NULL;
+	char* build = NULL;
+	build = (char*)malloc(BLOCK_SIZE); 
+ 
+	if(fd < 0 || fd >= 32)
+	{
+		return -1;
+	}
+
+	if(FD_Array[fd]->offset > BLOCK_SIZE * sb->FAT_blocks) // || FD_Array[fd]->offset > FD_Array[fd]->file->size)
+	{
+		return 0;
+	}
+
+
+	start = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// start is an fd index
+
+	block_read(sb->start_index + start, (void*)build);
+
+	
+	while(fat[next].fat_entry != FAT_EOC)
+	{
+		next = fat[next].fat_entry;
+
+		block_read(sb->start_index + next, (void*)buffer);
+
+		strcat(build, buffer);
+	}
+
+	build = build + FD_Array[fd]->offset;
+
+	memcpy(buf, (void*)build, count);
+
+	return count;
 }
