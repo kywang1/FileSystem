@@ -21,7 +21,7 @@ typedef struct __attribute__((__packed__)) FAT{			// max fat block count is 4 si
 }FAT;
 
 typedef struct __attribute__((__packed__)) SB{
-	uint64_t signature;
+	char signature[8];
 	uint16_t block_total;
 	uint16_t root_index;
 	uint16_t start_index;
@@ -49,6 +49,22 @@ FD* FD_Array[32];
 SB* sb;
 RD* rd;
 
+int error_check(void)
+{
+	if(!sb)
+	{
+		return -1;
+	}
+	sb->signature[8] = '\0';
+	if(strncmp(sb->signature, "ECS150FS", strlen(sb->signature)) != 0 || sb->block_total + sb->FAT_blocks + 2 != block_disk_count() || sb->root_index - sb->FAT_blocks != 1 || sb->start_index - sb->root_index != 1)
+	{
+		puts("error");
+		return -1;
+	}
+
+	return 0;
+}
+
 int fs_mount(const char *diskname)
 {
 	rootFree = 0;
@@ -64,6 +80,11 @@ int fs_mount(const char *diskname)
 	rd = (RD*)malloc(sizeof(RD));
 
 	block_read(0, (void*)sb);
+
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 
 	fat = (FAT*)malloc(BLOCK_SIZE * sb->FAT_blocks);
 	
@@ -134,8 +155,12 @@ int fs_umount(void)
 
 int fs_info(void)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	printf("FS Info:\n");
-	printf("total_blk_count=%hu\n",sb->block_total);
+	printf("total_blk_count=%hu\n",sb->block_total + sb->FAT_blocks + 2);
 	printf("fat_blk_count=%hu\n", sb->FAT_blocks);
 	printf("rdir_blk=%hu\n", sb->root_index); 						// come back to this
 	printf("data_blk=%hu\n", sb->start_index); 						// come back to this
@@ -147,6 +172,10 @@ int fs_info(void)
 
 int fs_create(const char *filename)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	
 	if(strlen(filename) > 16)
 	{
@@ -163,7 +192,6 @@ int fs_create(const char *filename)
 			{
 				return -1;
 			}
-
 		}
 	}
 
@@ -190,6 +218,10 @@ int fs_create(const char *filename)
 
 int fs_delete(const char *filename)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 
 	if(strlen(filename) > 16)
 	{
@@ -217,6 +249,10 @@ int fs_delete(const char *filename)
 
 int fs_ls(void)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	printf("FS Ls:\n");
 	for(int i = 0; i < 128; i++)
 	{
@@ -231,6 +267,10 @@ int fs_ls(void)
 
 int fs_open(const char *filename)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	if(strlen(filename) > 16){
 		return -1;
 	}
@@ -269,6 +309,10 @@ int fs_open(const char *filename)
 
 int fs_close(int fd)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	if(fd < 0 || fd >= 32)
 	{
 		return -1;
@@ -287,6 +331,10 @@ int fs_close(int fd)
 
 int fs_stat(int fd)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	if(fd < 0 || fd >= 32)
 	{
 		return -1;
@@ -302,6 +350,10 @@ int fs_stat(int fd)
 
 int fs_lseek(int fd, size_t offset)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	if(fd < 0 || fd >= 32)
 	{
 		return -1;
@@ -319,6 +371,10 @@ int fs_lseek(int fd, size_t offset)
 
 int fs_write(int fd, void *buf, size_t count)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	if(fd < 0 || fd >= 32)
 	{
 		return -1;
@@ -329,6 +385,10 @@ int fs_write(int fd, void *buf, size_t count)
 
 int fs_read(int fd, void *buf, size_t count)
 {
+	if(error_check() == -1)
+	{
+		return -1;
+	}
 	int next, start;
 	char* buffer = NULL;
 	char* build = NULL;
