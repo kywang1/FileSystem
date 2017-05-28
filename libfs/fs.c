@@ -393,7 +393,7 @@ int fs_read(int fd, void *buf, size_t count)
 		return -1;
 	}
 	int start, read = 0;
-	char* buffer = malloc(BLOCK_SIZE * sb->FAT_blocks) ;
+	char* buffer = malloc(BLOCK_SIZE) ;
 	char* build = malloc(BLOCK_SIZE * sb->FAT_blocks) ;
 //	build = (char*)malloc(BLOCK_SIZE); 
  
@@ -402,25 +402,26 @@ int fs_read(int fd, void *buf, size_t count)
 		return -1;
 	}
 
-	if(FD_Array[fd]->offset > BLOCK_SIZE * sb->FAT_blocks) 				// || FD_Array[fd]->offset > FD_Array[fd]->file->size)
+	if(FD_Array[fd]->offset > BLOCK_SIZE * sb->FAT_blocks || FD_Array[fd]->offset > FD_Array[fd]->file->size)
 	{
 		return 0;
 	}
 
-	start = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// start is an fd index
+	start = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// this finds the starting block
 	block_read(sb->start_index + start, (void*)build);
-	read++;
+	read += strlen(build) - offset;							// this counting the number of bytes we read from the starting block
 
 	start = fat[start].fat_entry;
 
 	while(fat[start].fat_entry != FAT_EOC)
 	{
 		block_read(sb->start_index + (start / 4096), (void*)buffer);
-		read++;
-		strcat(build,buffer);
+		read+= strlen(buffer);							// we want to count the length of the buffer contents
+
+		strcat(build,buffer);							// concat with main buffer
 		start = fat[start].fat_entry;
 
-		if(start >=  BLOCK_SIZE * sb->FAT_blocks || read * BLOCK_SIZE)	
+		if(start >=  BLOCK_SIZE * sb->FAT_blocks || read >= count)		// range check
 		{
 			break;
 		}
@@ -428,6 +429,6 @@ int fs_read(int fd, void *buf, size_t count)
 
 	
 	build = build + FD_Array[fd]->offset;
-	memcpy(buf, (void*)build, count);
-	return count;
+	memcpy(buf, (void*)build, read);
+	return read;
 }
