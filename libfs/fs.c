@@ -391,7 +391,7 @@ int fs_read(int fd, void *buf, size_t count)
 	{
 		return -1;
 	}
-	int next, start;
+	int next, start, read = 0;
 	char* buffer = NULL;
 	char* build = NULL;
 	build = (char*)malloc(BLOCK_SIZE); 
@@ -419,11 +419,17 @@ int fs_read(int fd, void *buf, size_t count)
 		block_read(sb->start_index + next, (void*)buffer);
 
 		strcat(build, buffer);
+		read++;
+
+		if(next >= BLOCK_SIZE * sb->FAT_blocks || read == count)
+		{
+			break;
+		}
 	}
 
 	build = build + FD_Array[fd]->offset;
 
-	memcpy(buf, (void*)build, count);
+	memcpy(buf, (void*)build, read);
 
-	return count;
+	return read;
 }
