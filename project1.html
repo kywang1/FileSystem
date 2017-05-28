@@ -1,0 +1,193 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <meta name="author" content="Joël Porquet" />
+  <title>ECS 150: Project #1 - Simple shell</title>
+  <style type="text/css">code{white-space: pre;}</style>
+
+</head>
+<body>
+<div id="header">
+<h1 class="title">ECS 150: Project #1 - Simple shell</h1>
+<h2 class="author">Joël Porquet</h2>
+<h3 class="date">UC Davis, Winter Quarter 2017, version 1.7</h3>
+</div>
+<div id="TOC">
+<ul>
+<li><a href="#changelog">Changelog</a></li>
+<li><a href="#general-information">General information</a></li>
+<li><a href="#specifications">Specifications</a><ul>
+<li><a href="#introduction">Introduction</a><ul>
+<li><a href="#constraints">Constraints</a></li>
+</ul></li>
+<li><a href="#phase-0-preliminary-work">Phase 0: preliminary work</a><ul>
+<li><a href="#understand-the-code">0.1 Understand the code</a></li>
+<li><a href="#makefile">0.2 Makefile</a></li>
+</ul></li>
+<li><a href="#phase-1-running-commands-the-hard-way">Phase 1: running commands the hard way</a></li>
+<li><a href="#phase-2-read-commands-from-the-input">Phase 2: read commands from the input</a><ul>
+<li><a href="#error-management">Error management</a></li>
+</ul></li>
+<li><a href="#phase-3-arguments">Phase 3: arguments</a></li>
+<li><a href="#phase-4-builtin-commands">Phase 4: builtin commands</a><ul>
+<li><a href="#exit"><code>exit</code></a></li>
+<li><a href="#cd-and-pwd"><code>cd</code> and <code>pwd</code></a></li>
+</ul></li>
+<li><a href="#phase-5-input-redirection">Phase 5: Input redirection</a></li>
+<li><a href="#phase-6-output-redirection">Phase 6: Output redirection</a></li>
+<li><a href="#phase-7-pipeline-commands">Phase 7: Pipeline commands</a></li>
+<li><a href="#phase-8-background-commands">Phase 8: Background commands</a></li>
+</ul></li>
+<li><a href="#deliverable">Deliverable</a><ul>
+<li><a href="#content">Content</a></li>
+<li><a href="#git">Git</a></li>
+<li><a href="#handin">Handin</a></li>
+</ul></li>
+<li><a href="#academic-integrity">Academic integrity</a></li>
+</ul>
+</div>
+<h1 id="changelog">Changelog</h1>
+<ul>
+<li>v1.7: Fix due date</li>
+<li>v1.6: Introduce changelog section</li>
+<li>v1.5: Phase 2 - <em>Fix output of shell example (&quot;command not found&quot; example)</em></li>
+<li>v1.4: Introduction - <em>Remove mention of history management</em></li>
+<li>v1.3: Phase 7 - <em>Fix typo (in pipeline of commands, only last command can have its output redirected)</em></li>
+<li>v1.2: Phase 2 - <em>Fix typo (&quot;command not found&quot; error message)</em></li>
+<li>v1.1: General info - <em>Update due date</em></li>
+</ul>
+<h1 id="general-information">General information</h1>
+<p>Due before <strong>11:59 PM, Tuesday, April 18th, 2017</strong>.</p>
+<p>You will be working with a partner for this project.</p>
+<p>The reference work environment is the CSIF.</p>
+<h1 id="specifications">Specifications</h1>
+<p><em>Note that the specifications for this project are subject to change at anytime for additional clarification. Make sure to always refer to the latest version.</em></p>
+<h2 id="introduction">Introduction</h2>
+<p>The goal of this project is to understand important UNIX system calls by implementing a simple shell called <strong>sshell</strong>. A shell is a command-line interpreter: it accepts input from the user under the form of command lines and executes them.</p>
+<p>In the following example, it is the shell that is in charge of printing the <em>shell prompt</em>, understanding the supplied command line (redirect the output of executable program <code>ls</code> with the argument <code>-l</code> to the input of executable program <code>cat</code>), execute it and wait for it to finish before prompting the user for a new command line.</p>
+<div class="highlight"><pre><span></span><span class="gp">jporquet@pc10:~/ecs150 %</span> ls -l <span class="p">|</span> cat
+<span class="go">total 12K</span>
+<span class="go">-rw------- 1 jporquet users 11K 2017-04-04 11:27 ASSIGNMENT.md</span>
+<span class="gp">jporquet@pc10:~/ecs150 %</span>
+</pre></div>
+
+<p>Similar to well-known shells such as <em>bash</em> or <em>zsh</em>, your shell will be able to:</p>
+<ol style="list-style-type: decimal">
+<li>execute user-supplied commands with optional arguments</li>
+<li>offer a selection of builtin commands</li>
+<li>redirect the standard input or standard output of commands to files</li>
+<li>pipe the output of commands to other commands</li>
+<li>put commands in the background</li>
+</ol>
+<p>A working example of the simple shell can be found on the CSIF, at <code>/home/jporquet/ecs150/sshell_ref</code>.</p>
+<h3 id="constraints">Constraints</h3>
+<p>The shell must be written in C, be compiled with GCC and only use the standard functions provided by the <a href="https://www.gnu.org/software/libc/manual/">GNU C Library</a> (aka <code>libc</code>). <em>All</em> the functions provided by the <code>libc</code> can be used, but your program cannot be linked to any other external libraries.</p>
+<p>Your source code should follow the relevant parts of the <a href="https://www.kernel.org/doc/html/latest/process/coding-style.html">Linux kernel coding style</a> and be properly commented.</p>
+<h2 id="phase-0-preliminary-work">Phase 0: preliminary work</h2>
+<p>In this preliminary phase, copy the skeleton C file <code>/home/jporquet/ecs150/sshell.c</code> to your directory. Compile it into an executable <code>sshell</code> and run it.</p>
+<div class="highlight"><pre><span></span><span class="gp">jporquet@pc10:~/ %</span> ./sshell
+<span class="go">...</span>
+</pre></div>
+
+<p>What does it do?</p>
+<h3 id="understand-the-code">0.1 Understand the code</h3>
+<p>Open the C file <code>sshell.c</code> and read the code. As you can notice, we use the function <code>system()</code> to run the command <code>/usr/bin/date -u</code> (which displays the current time in UTC format) and print the <em>raw</em> status value that the command returned to the standard output (<code>stdin</code>).</p>
+<p>The problem is that <code>system()</code> is too high-level to use for implementing a realistic shell. For example, it doesn't let you redirect the input or output, or run commands in the background.</p>
+<p>Useful resources for this phase:</p>
+<ul>
+<li><a href="http://man7.org/linux/man-pages/man3/system.3.html" class="uri">http://man7.org/linux/man-pages/man3/system.3.html</a></li>
+<li><a href="https://www.gnu.org/software/libc/manual/html_mono/libc.html#Running-a-Command" class="uri">https://www.gnu.org/software/libc/manual/html_mono/libc.html#Running-a-Command</a></li>
+</ul>
+<h3 id="makefile">0.2 Makefile</h3>
+<p>Write a simple Makefile that generates an executable <code>sshell</code> from the file <code>sshell.c</code>, using GCC.</p>
+<p>The compiler should be run with the <code>-Wall</code> and <code>-Werror</code> options.</p>
+<p>There should also be a <code>clean</code> rule that removes any generated files and puts the directory back in its original state.</p>
+<p>Useful resources for this phase:</p>
+<ul>
+<li><a href="https://www.gnu.org/software/make/manual/make.html" class="uri">https://www.gnu.org/software/make/manual/make.html</a></li>
+<li><a href="https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html" class="uri">https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html</a></li>
+</ul>
+<h2 id="phase-1-running-commands-the-hard-way">Phase 1: running commands the hard way</h2>
+<p>Instead of using the function <code>system()</code>, modify the program in order to use the <em>fork+exec+wait</em> method.</p>
+<p>In a nutshell, your shell should fork and create a child process; the child process should run the specified command with exec while the parent process waits until the child process has completed and the parent can collect its exit status.</p>
+<p>The output of the program execution should be as follows.</p>
+<div class="highlight"><pre><span></span><span class="gp">jporquet@pc10:~/ %</span> ./sshell
+<span class="go">Tue Apr  4 21:12:18 UTC 2017</span>
+<span class="go">+ completed '/usr/bin/date -u' [0]</span>
+<span class="gp">jporquet@pc10:~/ %</span>
+</pre></div>
+
+<p>There are a couple of non-apparent differences between this output and the output of the provided skeleton code:</p>
+<ul>
+<li><p>The information message following the execution of the command is printed to <code>stderr</code> and not <code>stdout</code>.</p>
+<p>This can be verified by redirecting the error output to <code>/dev/null</code> and checking that the information message is not printed anymore:</p>
+<div class="highlight"><pre><span></span><span class="gp">jporquet@pc10:~/ %</span> ./sshell <span class="m">2</span>&gt;/dev/null
+<span class="go">Tue Apr  4 21:12:18 UTC 2017</span>
+<span class="gp">jporquet@pc10:~/ %</span>
+</pre></div>
+</li>
+<li><p>The printed status (i.e. <code>0</code> in the example above) is not the full <em>raw</em> status value anymore, it is the <em>exit</em> status only. Refer to the <em>Process Completion Status</em> section of the <code>libc</code> documentation to understand how to extract this value.</p></li>
+</ul>
+<p>Useful resources for this phase: <a href="https://www.gnu.org/software/libc/manual/html_mono/libc.html#Processes" class="uri">https://www.gnu.org/software/libc/manual/html_mono/libc.html#Processes</a></p>
+<h2 id="phase-2-read-commands-from-the-input">Phase 2: read commands from the input</h2>
+<p>Until now, your program is only running a hard-coded command. In order to be interactive, the shell should instead read commands from the user and execute them.</p>
+<p>In this phase, modify your shell in order to print the <em>shell prompt</em> '<code>sshell$</code> ' (without the quotes but with the trailing white space) and read a complete command line from the user. We assume that the maximum length of a command line never exceeds 512 characters.</p>
+<p>Since it would be annoying for the user to always type the complete paths of the commands to execute (e.g. <code>/usr/bin/ls</code>), programs should be searched according to the <a href="https://www.gnu.org/software/libc/manual/html_mono/libc.html#Standard-Environment"><code>$PATH</code> environment variable</a>. For that, you need to carefully choose which of the <code>exec</code> functions should be used.</p>
+<p>For this phase, you can assume that the user can only enter the name of a program (e.g. <code>ls</code>, <code>ps</code>, <code>date</code>, etc.) without any argument.</p>
+<p>Example of output:</p>
+<div class="highlight"><pre><span></span><span class="go">sshell$ date</span>
+<span class="go">Tue Apr  4 14:09:08 PDT 2017</span>
+<span class="go">+ completed 'date' [0]</span>
+<span class="go">sshell$</span>
+</pre></div>
+
+<p>Useful resources for this phase:</p>
+<ul>
+<li><a href="https://www.gnu.org/software/libc/manual/html_mono/libc.html#Line-Input" class="uri">https://www.gnu.org/software/libc/manual/html_mono/libc.html#Line-Input</a></li>
+<li><a href="https://www.gnu.org/software/libc/manual/html_mono/libc.html#Executing-a-File" class="uri">https://www.gnu.org/software/libc/manual/html_mono/libc.html#Executing-a-File</a></li>
+</ul>
+<h3 id="error-management">Error management</h3>
+<p>In case of user errors (e.g. invalid input, command not found, etc.), the shell should display a meaningful error message on <code>stderr</code> and wait for the next input, but it should <strong>not</strong> die.</p>
+<p>Example of a command not found:</p>
+<div class="highlight"><pre><span></span><span class="go">sshell$ toto</span>
+<span class="go">Error: command not found</span>
+<span class="go">+ completed 'toto' [1]</span>
+<span class="go">sshell$</span>
+</pre></div>
+
+<p>The only reason for which the shell is allowed to die (with an exit value of <code>1</code>) is if a system call actually fails. For example, <code>malloc()</code> fails to allocate memory or <code>fork()</code> fails to spawn a child.</p>
+<h2 id="phase-3-arguments">Phase 3: arguments</h2>
+<p>In this phase, you must add to your shell the ability to handle command lines containing programs and their arguments.</p>
+<p>A command is then defined as the name of a program, followed by optional arguments, each separated by white spaces (at least one, but can also be more than one). In order to simplify your implementation, you can assume that a command will never have more than 16 arguments (name of the program included).</p>
+<p>For this phase, you will need to start <em>parsing</em> the command line in order to interpret what needs to be run. Refer to the <code>libc</code> documentation to learn more about strings in C (and particularly sections 5.1, 5.3, 5.4, 5.7 and 5.10): <a href="https://www.gnu.org/software/libc/manual/html_mono/libc.html#String-and-Array-Utilities" class="uri">https://www.gnu.org/software/libc/manual/html_mono/libc.html#String-and-Array-Utilities</a></p>
+<p>Example of commands which include arguments (with more or less white spaces separating arguments):</p>
+<div class="highlight"><pre><span></span><span class="go">sshell$ date -u</span>
+<span class="go">Tue Apr  4 22:07:03 UTC 2017</span>
+<span class="go">+ completed 'date -u' [0]</span>
+<span class="go">sshell$ date                      -u</span>
+<span class="go">Tue Apr  4 22:46:41 UTC 2017</span>
+<span class="go">+ completed 'date                      -u' [0]</span>
+<span class="go">sshell$</span>
+</pre></div>
+
+<p>At this point, and if you have not already, it probably is the right time to think of how you could represent commands using a data structure. After all, a <code>struct</code> object in C is nothing different than a C++/Java class without methods. But such an object can still contain fields that contain the object's properties, and C++-like methods can be implemented as simple functions that receive objects as parameters.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><span class="cm">/* C++ class */</span>
+<span class="k">class</span> <span class="nc">myclass</span> <span class="p">{</span>
+    <span class="kt">int</span> <span class="n">a</span><span class="p">;</span>
+
+    <span class="n">mymethod</span><span class="p">(</span><span class="kt">int</span> <span class="n">b</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="n">b</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">};</span>
+
+<span class="cm">/* Equivalent in C */</span>
+<span class="k">struct</span> <span class="n">myobj</span> <span class="p">{</span>
+    <span class="kt">int</span> <span class="n">a</span><span class="p">;</span>
+<span class="p">};</span>
+
+
+
