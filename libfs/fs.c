@@ -1,4 +1,4 @@
-	#include <assert.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -392,44 +392,37 @@ int fs_read(int fd, void *buf, size_t count)
 	{
 		return -1;
 	}
-	int start;
-	char* buffer = malloc(BLOCK_SIZE * 4) ;
-	char* build = malloc(BLOCK_SIZE * 4) ;
-	build = (char*)malloc(BLOCK_SIZE); 
+	int start, read = 0;
+	char* buffer = malloc(BLOCK_SIZE * sb->FAT_blocks) ;
+	char* build = malloc(BLOCK_SIZE * sb->FAT_blocks) ;
+//	build = (char*)malloc(BLOCK_SIZE); 
  
 	if(fd < 0 || fd >= 32)
 	{
 		return -1;
 	}
 
-	if(FD_Array[fd]->offset > BLOCK_SIZE * sb->FAT_blocks) // || FD_Array[fd]->offset > FD_Array[fd]->file->size)
+	if(FD_Array[fd]->offset > BLOCK_SIZE * sb->FAT_blocks) 				// || FD_Array[fd]->offset > FD_Array[fd]->file->size)
 	{
 		return 0;
 	}
 
-
 	start = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// start is an fd index
 	block_read(sb->start_index + start, (void*)build);
+	read++;
 
-	if(fat[start].fat_entry != FAT_EOC){
+	start = fat[start].fat_entry;
+
+	while(fat[start].fat_entry != FAT_EOC)
+	{
+		block_read(sb->start_index + (start / 4096), (void*)buffer);
+		read++;
+		strcat(build,buffer);
 		start = fat[start].fat_entry;
-		if(fat[start].fat_entry == FAT_EOC){ //last block to read
-			puts("here");
-			block_read(sb->start_index + start, (void*)build);
-			if(build == NULL){
-				printf("NULL\n");
-			}
-			strcat(build,buffer);
-		}else{ //read all other blocks
-			while(fat[start].fat_entry != FAT_EOC){
-				puts("while loop");
-				block_read(sb->start_index + start, (void*)buffer);
-				if(build == NULL){
-					printf("NULL\n");
-				}
-				strcat(build,buffer);
-				start = fat[start].fat_entry;
-			}
+
+		if(start >=  BLOCK_SIZE * sb->FAT_blocks || read * BLOCK_SIZE)	
+		{
+			break;
 		}
 	}
 
