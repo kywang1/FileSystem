@@ -426,8 +426,8 @@ int fs_read(int fd, void *buf, size_t count)
 
 	while(curr_block != FAT_EOC)
 	{	
-		block_read(sb->start_index + curr_block, (void*)build);
-		read += strlen(build);							// this counting the number of bytes we read from the starting block
+		block_read(sb->start_index + curr_block, (void*)buffer);
+		read += strlen(buffer);							// this counting the number of bytes we read from the starting block
 		strcat(build,buffer);
 		memset(buffer, 0, BLOCK_SIZE);
 		curr_block = fat[curr_block].fat_entry;
