@@ -93,7 +93,7 @@ void thread_fs_cat(void *arg)
 		die("Cannot mount diskname");
 
 	fs_fd = fs_open(filename);
-	printf("%d\n",fs_fd );
+	printf("%d\n",fs_fd);
 	if (fs_fd < 0) {
 		fs_umount();
 		die("Cannot open file");

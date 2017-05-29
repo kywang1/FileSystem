@@ -130,6 +130,7 @@ int fs_mount(const char *diskname)
 		FD_Array[i]->file = NULL;
 	}
 
+	puts("end of mount");
 	return 0;
 }
 
@@ -269,6 +270,7 @@ int fs_ls(void)
 
 int fs_open(const char *filename)
 {
+	puts("start of open");
 	if(error_check() == -1)
 	{
 		return -1;
@@ -278,6 +280,7 @@ int fs_open(const char *filename)
 	}
 
 	int free_index = 0;
+
 
 	for(; free_index < 32; free_index++)
 	{
@@ -305,7 +308,7 @@ int fs_open(const char *filename)
 			}
 		}
 	}
-
+	
 	return -1;
 }
 
@@ -346,7 +349,7 @@ int fs_stat(int fd)
 	{
 		return -1;
 	}
-
+	puts("end of stat");
 	return FD_Array[fd]->file->size;
 }
 
@@ -388,6 +391,7 @@ int fs_write(int fd, void *buf, size_t count)
 
 int fs_read(int fd, void *buf, size_t count)
 {
+
 	if(error_check() == -1)
 	{
 		return -1;
@@ -407,27 +411,40 @@ int fs_read(int fd, void *buf, size_t count)
 		return 0;
 	}
 
-	start = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// this finds the starting block
-	block_read(sb->start_index + start, (void*)build);
-	read += strlen(build) - offset;							// this counting the number of bytes we read from the starting block
+	///////////////////// start reading blocks from FAT
+	start = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// this finds the starting data block location
 
-	start = fat[start].fat_entry;
+	
+	if(fat[start].fat_entry != FAT_EOC){ //if data is contained in more than just one block
+		start = fat[start].fat_entry;
+	}
+	else{
+		start = start;
+	}
+	
+	block_read(sb->start_index + start, (void*)build);
+	read += strlen(build) - FD_Array[fd]->offset;							// this counting the number of bytes we read from the starting block
 
 	while(fat[start].fat_entry != FAT_EOC)
 	{
-		block_read(sb->start_index + (start / 4096), (void*)buffer);
+		block_read(sb->start_index + (start), (void*)buffer);
 		read+= strlen(buffer);							// we want to count the length of the buffer contents
-
 		strcat(build,buffer);							// concat with main buffer
 		start = fat[start].fat_entry;
+		memset(buffer, 0, BLOCK_SIZE);
 
+		if(fat[start].fat_entry == FAT_EOC){
+			block_read(sb->start_index + (start), (void*)buffer);
+			read+= strlen(buffer);		
+			strcat(build,buffer);
+			break;
+		}
 		if(start >=  BLOCK_SIZE * sb->FAT_blocks || read >= count)		// range check
 		{
 			break;
 		}
 	}
 
-	
 	build = build + FD_Array[fd]->offset;
 	memcpy(buf, (void*)build, read);
 	return read;
