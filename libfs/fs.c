@@ -396,7 +396,7 @@ int fs_read(int fd, void *buf, size_t count)
 	{
 		return -1;
 	}
-	int start, read = 0;
+	int curr_block, read = 0;
 	char* buffer = malloc(BLOCK_SIZE) ;
 	char* build = malloc(BLOCK_SIZE * sb->FAT_blocks) ;
 //	build = (char*)malloc(BLOCK_SIZE); 
@@ -412,34 +412,27 @@ int fs_read(int fd, void *buf, size_t count)
 	}
 
 	///////////////////// start reading blocks from FAT
-	start = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// this finds the starting data block location
 
-	
-	if(fat[start].fat_entry != FAT_EOC){ //if data is contained in more than just one block
-		start = fat[start].fat_entry;
-	}
-	else{
-		start = start;
-	}
-	
-	block_read(sb->start_index + start, (void*)build);
-	read += strlen(build) - FD_Array[fd]->offset;							// this counting the number of bytes we read from the starting block
 
-	while(fat[start].fat_entry != FAT_EOC)
-	{
-		block_read(sb->start_index + (start), (void*)buffer);
-		read+= strlen(buffer);							// we want to count the length of the buffer contents
-		strcat(build,buffer);							// concat with main buffer
-		start = fat[start].fat_entry;
+
+	curr_block = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// this finds the starting data block location
+
+	block_read(sb->start_index + curr_block, (void*)build);
+	read += strlen(build) - FD_Array[fd]->offset;							// this counting the number of bytes we read from the starting block	
+
+
+	curr_block = fat[curr_block].fat_entry;
+
+
+	while(curr_block != FAT_EOC)
+	{	
+		block_read(sb->start_index + curr_block, (void*)build);
+		read += strlen(build);							// this counting the number of bytes we read from the starting block
+		strcat(build,buffer);
 		memset(buffer, 0, BLOCK_SIZE);
+		curr_block = fat[curr_block].fat_entry;
 
-		if(fat[start].fat_entry == FAT_EOC){
-			block_read(sb->start_index + (start), (void*)buffer);
-			read+= strlen(buffer);		
-			strcat(build,buffer);
-			break;
-		}
-		if(start >=  BLOCK_SIZE * sb->FAT_blocks || read >= count)		// range check
+		if(read >= count || curr_block >= BLOCK_SIZE *sb->FAT_blocks)
 		{
 			break;
 		}
@@ -447,5 +440,6 @@ int fs_read(int fd, void *buf, size_t count)
 
 	build = build + FD_Array[fd]->offset;
 	memcpy(buf, (void*)build, read);
+	fs_lseek(fd, FD_Array[fd]->offset + read);
 	return read;
 }
