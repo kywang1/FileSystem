@@ -116,8 +116,11 @@ void thread_fs_cat(void *arg)
 		die("Cannot malloc");
 	}
 
+	read = fs_read(fs_fd, buf, 10);
+	
+	//printf("%s\n",buf);
+	puts("/////////////////////////////\n");
 	read = fs_read(fs_fd, buf, stat);
-
 	if (fs_close(fs_fd)) {
 		fs_umount();
 		die("Cannot close file");

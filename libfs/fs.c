@@ -270,7 +270,6 @@ int fs_ls(void)
 
 int fs_open(const char *filename)
 {
-	puts("start of open");
 	if(error_check() == -1)
 	{
 		return -1;
@@ -391,7 +390,6 @@ int fs_write(int fd, void *buf, size_t count)
 
 int fs_read(int fd, void *buf, size_t count)
 {
-
 	if(error_check() == -1)
 	{
 		return -1;
@@ -415,11 +413,14 @@ int fs_read(int fd, void *buf, size_t count)
 
 
 
-	curr_block = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);		// this finds the starting data block location
+	curr_block = FD_Array[fd]->file->index; //+ (FD_Array[fd]->offset / 4096);		// this finds the starting data block location
 
 	block_read(sb->start_index + curr_block, (void*)build);
-	read += strlen(build) - FD_Array[fd]->offset;							// this counting the number of bytes we read from the starting block	
-
+	read += strlen(build);// FD_Array[fd]->offset;							// this counting the number of bytes we read from the starting block	
+	if(read == 0)
+	{
+		return 0;
+	}
 
 	curr_block = fat[curr_block].fat_entry;
 
@@ -432,14 +433,27 @@ int fs_read(int fd, void *buf, size_t count)
 		memset(buffer, 0, BLOCK_SIZE);
 		curr_block = fat[curr_block].fat_entry;
 
-		if(read >= count || curr_block >= BLOCK_SIZE *sb->FAT_blocks)
+		
+		if(curr_block >= BLOCK_SIZE *sb->FAT_blocks)
 		{
 			break;
 		}
 	}
 
 	build = build + FD_Array[fd]->offset;
-	memcpy(buf, (void*)build, read);
-	fs_lseek(fd, FD_Array[fd]->offset + read);
-	return read;
+	if(read > count)
+	{
+		memcpy(buf, (void*)build, count);
+		fs_lseek(fd, FD_Array[fd]->offset + count);
+		return count;
+	}
+	else
+	{
+		read -= FD_Array[fd]->offset;
+		memcpy(buf, (void*)build, read);
+		fs_lseek(fd, FD_Array[fd]->offset + read);
+		return read;
+	}
+	
+	
 }
