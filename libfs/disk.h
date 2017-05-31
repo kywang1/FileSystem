@@ -65,7 +65,7 @@ int block_write(size_t block, const void *buf);
  * block_read - Read a block from disk
  * @block: Index of the block to read from
  * @buf: Data buffer to be filled with content of block
- *
+ * 
  * Read the content of virtual disk's block @block (%BLOCK_SIZE bytes) into
  * buffer @buf.
  *
