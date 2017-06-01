@@ -174,6 +174,13 @@ void fat_delete(int index)
 	}	
 }
 
+void fat_write(){
+	for(int i = 0; i < sb.FAT_blocks; i++)
+	{
+		block_write(1 + i,(void*)fat + i*(BLOCK_SIZE));
+	}
+}
+
 int fs_create(const char *filename)
 {
 	if(error_check() == -1)
@@ -218,19 +225,14 @@ int fs_create(const char *filename)
 	rd.root_array[rd_free_index].size = 0;
 	rd.root_array[rd_free_index].index = fat_free_index;
 	strcpy(rd.root_array[rd_free_index].filename, filename);
-	printf("rd_free_index: %d\n",rd_free_index );
+
 	fat[fat_free_index].fat_entry = FAT_EOC;
-	printf("fat_free_index: %d\n",fat_free_index);
-	printf("after create: fat[2].fat_entry: %d\n",fat[2].fat_entry);
 	rootFree--;
 	fatFree--;
 
 	block_write(sb.root_index,&rd);
-
-	for(int i = 0; i < sb.FAT_blocks; i++)
-	{
-		block_write(1 + i,(void*)fat + i*(BLOCK_SIZE));
-	}
+	fat_write();
+	
 
 	return 0;
 }
@@ -309,6 +311,7 @@ int fs_open(const char *filename)
 	{
 		if(rd.root_array[i].filename[0] != 0)
 		{
+
 			if(strcmp(rd.root_array[i].filename, filename) == 0)
 			{
 				FD_Array[free_index]->fd = free_index;
@@ -454,11 +457,7 @@ int fs_write(int fd, void *buf, size_t count)
 		FD_Array[fd]->file->size = count;
 		FD_Array[fd]->file->index = curr_block;
 		block_write(sb.root_index, rd.root_array);
-
-		for(int i = 0; i < sb.FAT_blocks; i++)
-		{
-			block_write(1 + i,(void*)fat + i*(BLOCK_SIZE));
-		}
+		fat_write();
 		return count;
 	}
 	else								// big operation
