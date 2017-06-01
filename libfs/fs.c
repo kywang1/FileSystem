@@ -88,6 +88,8 @@ int fs_mount(const char *diskname)
 	{
 		block_read(1 + i,(void*)fat + i*(BLOCK_SIZE));
 	}
+	printf("a %d\n", (int)fat[0].fat_entry);
+	printf("b %d\n", (int)fat[1].fat_entry);
 
 	for(int i = 0; i < sb.data_blocks; i++)
 	{
@@ -446,12 +448,18 @@ int fs_write(int fd, void *buf, size_t count)
 
 	if(count + offset <= BLOCK_SIZE)				// small operation
 	{
-		puts("small");
+		printf("%s\n",build );
+		printf("curr_block: %d\n",curr_block);
 		block_write(curr_block, build);
 		FD_Array[fd]->file->size = count;
 		rd.root_array[rd_loc].size = count;
 		block_write(sb.root_index,&rd);
-
+		printf("a %d\n", (int)fat[0].fat_entry);
+		printf("b %d\n", (int)fat[1].fat_entry);
+		for(int i = 0; i < sb.FAT_blocks; i++)
+		{
+			block_write(1 + i,(void*)fat + i*(BLOCK_SIZE));
+		}
 		return count;
 	}
 	else								// big operation
@@ -644,7 +652,7 @@ int fs_read(int fd, void *buf, size_t count)
 
 	printf("curr_block: %d\n", curr_block);
 
-
+	printf("%s\n", build);
 	while(curr_block != FAT_EOC)
 	{	
 		block_read(sb.start_index + curr_block, (void*)buffer);
