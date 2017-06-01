@@ -88,7 +88,7 @@ int fs_mount(const char *diskname)
 	{
 		block_read(1 + i,(void*)fat + i*(BLOCK_SIZE));
 	}
-
+	printf("fat[2].fat_entry: %d\n",fat[2].fat_entry);
 	for(int i = 0; i < sb.data_blocks; i++)
 	{
 		if(fat[i].fat_entry == 0)
@@ -124,6 +124,7 @@ int fs_umount(void)
 	{
 		free(fat);
 	}
+
 	return(block_disk_close());
 }
 
@@ -215,10 +216,12 @@ int fs_create(const char *filename)
 	}
 
 	rd.root_array[rd_free_index].size = 0;
-	rd.root_array[rd_free_index].index = FAT_EOC;
+	rd.root_array[rd_free_index].index = fat_free_index;
 	strcpy(rd.root_array[rd_free_index].filename, filename);
-	fat[fat_free_index].fat_entry = 0;
-
+	printf("rd_free_index: %d\n",rd_free_index );
+	fat[fat_free_index].fat_entry = FAT_EOC;
+	printf("fat_free_index: %d\n",fat_free_index);
+	printf("after create: fat[2].fat_entry: %d\n",fat[2].fat_entry);
 	rootFree--;
 	fatFree--;
 
