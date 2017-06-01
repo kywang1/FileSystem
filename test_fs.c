@@ -55,6 +55,7 @@ void thread_fs_stat(void *arg)
 	}
 
 	stat = fs_stat(fs_fd);
+
 	if (stat < 0) {
 		fs_umount();
 		die("Cannot stat file");
@@ -115,11 +116,7 @@ void thread_fs_cat(void *arg)
 		fs_umount();
 		die("Cannot malloc");
 	}
-
-	read = fs_read(fs_fd, buf, 10);
 	
-	//printf("%s\n",buf);
-	puts("/////////////////////////////\n");
 	read = fs_read(fs_fd, buf, stat);
 	if (fs_close(fs_fd)) {
 		fs_umount();

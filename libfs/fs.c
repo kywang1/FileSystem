@@ -49,17 +49,13 @@ int rootFree;
 int fatFree;
 FAT* fat;
 FD* FD_Array[32];
-SB* sb;
-RD* rd;
+SB sb;
+RD rd;
 
 int error_check(void)
 {
-	if(!sb)
-	{
-		return -1;
-	}
-	sb->signature[8] = '\0';
-	if(strncmp(sb->signature, "ECS150FS", strlen(sb->signature)) != 0 || sb->block_total + sb->FAT_blocks + 2 != block_disk_count() || sb->root_index - sb->FAT_blocks != 1 || sb->start_index - sb->root_index != 1)
+	sb.signature[8] = '\0';
+	if(strncmp(sb.signature, "ECS150FS", strlen(sb.signature)) != 0 || sb.block_total + sb.FAT_blocks + 2 != block_disk_count() || sb.root_index - sb.FAT_blocks != 1 || sb.start_index - sb.root_index != 1)
 	{
 		puts("error");
 		return -1;
@@ -78,28 +74,22 @@ int fs_mount(const char *diskname)
 		return -1;
 	}
 
-	sb = (SB*)malloc(sizeof(SB));
-
-	rd = (RD*)malloc(sizeof(RD));
-
-	block_read(0, (void*)sb);
+	block_read(0, &sb);
 
 	if(error_check() == -1)
 	{
 		return -1;
 	}
 
-	fat = (FAT*)malloc(BLOCK_SIZE * sb->FAT_blocks);
+	fat = (FAT*)malloc(BLOCK_SIZE * sb.FAT_blocks);
 	
 
-	for(int i = 0; i < sb->FAT_blocks; i++)
+	for(int i = 0; i < sb.FAT_blocks; i++)
 	{
 		block_read(1 + i,(void*)fat + i*(BLOCK_SIZE));
 	}
 
-
-
-	for(int i = 0; i < sb->data_blocks; i++)
+	for(int i = 0; i < sb.data_blocks; i++)
 	{
 		if(fat[i].fat_entry == 0)
 		{
@@ -107,11 +97,11 @@ int fs_mount(const char *diskname)
 		}
 	}
 
-	block_read(sb->root_index, (void*)rd->root_array);
+	block_read(sb.root_index, &rd.root_array);
 
 	for(int i = 0; i < 128; i++)
 	{
-		if(rd->root_array[i].filename[0] == 0)
+		if(rd.root_array[i].filename[0] == 0)
 		{
 			rootFree++;
 		}
@@ -130,6 +120,10 @@ int fs_mount(const char *diskname)
 
 int fs_umount(void)
 {
+	if(fat)
+	{
+		free(fat);
+	}
 	return(block_disk_close());
 }
 
@@ -140,12 +134,12 @@ int fs_info(void)
 		return -1;
 	}
 	printf("FS Info:\n");
-	printf("total_blk_count=%hu\n",sb->block_total + sb->FAT_blocks + 2);
-	printf("fat_blk_count=%hu\n", sb->FAT_blocks);
-	printf("rdir_blk=%hu\n", sb->root_index); 						// come back to this
-	printf("data_blk=%hu\n", sb->start_index); 						// come back to this
-	printf("data_blk_count=%hu\n", sb->data_blocks);
-	printf("fat_free_ratio=%hu/%hu\n", fatFree, sb->data_blocks);
+	printf("total_blk_count=%hu\n",sb.block_total + sb.FAT_blocks + 2);
+	printf("fat_blk_count=%hu\n", sb.FAT_blocks);
+	printf("rdir_blk=%hu\n", sb.root_index); 						// come back to this
+	printf("data_blk=%hu\n", sb.start_index); 						// come back to this
+	printf("data_blk_count=%hu\n", sb.data_blocks);
+	printf("fat_free_ratio=%hu/%hu\n", fatFree, sb.data_blocks);
 	printf("rdir_free_ratio=%hu/128\n", rootFree);			//loop through disk to find how many root directories are free
 	return 0;
 }
@@ -153,7 +147,7 @@ int fs_info(void)
 
 int find_free_fat(void)
 {
-	for(int i = 0; i < BLOCK_SIZE * sb->FAT_blocks; i++)
+	for(int i = 0; i < BLOCK_SIZE * sb.FAT_blocks; i++)
 	{
 		if(fat[i].fat_entry == 0)
 		{
@@ -174,7 +168,7 @@ void fat_delete(int index)
 	{
 		next = fat[curr_index].fat_entry;
 		fat[curr_index].fat_entry = 0;
-		block_write(sb->start_index + curr_index, empty_block);
+		block_write(sb.start_index + curr_index, empty_block);
 		curr_index = next;
 	}	
 }
@@ -201,16 +195,16 @@ int fs_create(const char *filename)
 
 	for(int i = 0; i < 128; i++)
 	{
-		if(rd->root_array[i].filename[0] != 0)
+		if(rd.root_array[i].filename[0] != 0)
 		{
-			if(strcmp(rd->root_array[i].filename, filename) == 0)
+			if(strcmp(rd.root_array[i].filename, filename) == 0)
 			{
 				return -1;
 			}
 		}
 	}
 
-	while(rd->root_array[rd_free_index].filename[0] != 0)
+	while(rd.root_array[rd_free_index].filename[0] != 0)
 	{
 		rd_free_index++;
 
@@ -220,18 +214,22 @@ int fs_create(const char *filename)
 		}
 	}
 
-	
+	rd.root_array[rd_free_index].size = 0;
 
-	rd->root_array[rd_free_index].size = 0;
-	rd->root_array[rd_free_index].index = fat_free_index;
-	strcpy(rd->root_array[rd_free_index].filename, filename);
+	rd.root_array[rd_free_index].index = fat_free_index; //fat_free_index;
+	strcpy(rd.root_array[rd_free_index].filename, filename);
+
 	fat[fat_free_index].fat_entry = FAT_EOC;
 
-//	printf("new filename: %s\n", rd->root_array[rd_free_index].filename);
-//	printf("rd->root_array[free_index].filename: %s\n",rd->root_array[rd_free_index].filename);
 	rootFree--;
 	fatFree--;
-	block_write(sb->root_index,rd);
+
+	block_write(sb.root_index,&rd);
+
+	for(int i = 0; i < sb.FAT_blocks; i++)
+	{
+		block_write(1 + i,(void*)fat + i*(BLOCK_SIZE));
+	}
 
 	return 0;
 }
@@ -250,11 +248,11 @@ int fs_delete(const char *filename)
 
 	for(int i = 0; i < 128; i++)
 	{
-		if(strcmp(rd->root_array[i].filename, filename) == 0)
+		if(strcmp(rd.root_array[i].filename, filename) == 0)
 		{
-			fat_delete(rd->root_array[i].index);
-			memset(rd->root_array[i].filename, 0, 16);
-			block_write(sb->root_index,rd);
+			fat_delete(rd.root_array[i].index);
+			memset(rd.root_array[i].filename, 0, 16);
+			block_write(sb.root_index,&rd);
 			return 0;
 		}
 	}
@@ -272,9 +270,9 @@ int fs_ls(void)
 	printf("FS Ls:\n");
 	for(int i = 0; i < 128; i++)
 	{
-		if(rd->root_array[i].filename[0] != 0)
+		if(rd.root_array[i].filename[0] != 0)
 		{
-			printf("file: %s, size: %d, data_blk: %d\n", rd->root_array[i].filename, rd->root_array[i].size, rd->root_array[i].index);
+			printf("file: %s, size: %d, data_blk: %d\n", rd.root_array[i].filename, rd.root_array[i].size, rd.root_array[i].index);
 		}
 	}
 	
@@ -308,13 +306,13 @@ int fs_open(const char *filename)
 
 	for(int i = 0; i < 128; i++)
 	{
-		if(rd->root_array[i].filename[0] != 0)
+		if(rd.root_array[i].filename[0] != 0)
 		{
-			if(strcmp(rd->root_array[i].filename, filename) == 0)
+			if(strcmp(rd.root_array[i].filename, filename) == 0)
 			{
 				FD_Array[free_index]->fd = free_index;
 				FD_Array[free_index]->offset = 0;
-				FD_Array[free_index]->file = &(rd->root_array[i]);
+				FD_Array[free_index]->file = &(rd.root_array[i]);
 				FD_Open++;
 				return free_index;
 			}
@@ -387,48 +385,135 @@ int fs_lseek(int fd, size_t offset)
 
 int fs_write(int fd, void *buf, size_t count)
 {
+	int curr_block, write = count, next = 0, rd_loc = -1;
+	int offset = FD_Array[fd]->offset;
+	curr_block = FD_Array[fd]->file->index + (FD_Array[fd]->offset / BLOCK_SIZE);
+
+	printf("a %d\n", (int)fat[0].fat_entry);
+	printf("b %d\n", (int)fat[1].fat_entry);
+
 	if(error_check() == -1)
 	{
+		puts("stderr");
 		return -1;
 	}
 
 	if(fd < 0 || fd >= 32)
 	{
+		puts("inval fd");
 		return -1;
 	}
+	printf("a %d\n", (int)fat[0].fat_entry);
+	printf("b %d\n", (int)fat[1].fat_entry);
 
-	if(FD_Array[fd]->offset > BLOCK_SIZE * sb->FAT_blocks || FD_Array[fd]->offset > FD_Array[fd]->file->size)
+	if(offset > BLOCK_SIZE * sb.FAT_blocks || offset > FD_Array[fd]->file->size || curr_block >= sb.data_blocks)
 	{
+		puts("inval index");
 		return 0;
 	}
 
-	int curr_block, write = 0, next = 0, extend = 0;
-	char* build = malloc(BLOCK_SIZE * sb->FAT_blocks);
-	char* buffer = malloc(BLOCK_SIZE);
-	
-	curr_block = FD_Array[fd]->file->index + (FD_Array[fd]->offset / 4096);
+	for(int i = 0; i < 128; i++)
+	{
+		if(strcmp(rd.root_array[i].filename, FD_Array[fd]->file->filename) == 0)
+		{
+			puts("rd found");
+			rd_loc = i;
+			break;
+		}
+	}
+
+	printf("a %d\n", (int)fat[0].fat_entry);
+	printf("b %d\n", (int)fat[1].fat_entry);
+
+	if(rd_loc < 0)
+	{
+		return -1;
+	}
+
+	char* build = malloc(BLOCK_SIZE * sb.FAT_blocks);
+	char* block = malloc(BLOCK_SIZE);
+
+	if(FD_Array[fd]->file->size != 0)
+	{
+		block_read(curr_block, build);
+		strcat(build, buf);
+	}
+	else
+	{
+		strcat(build,buf);
+	}
+
+
+	if(count + offset <= BLOCK_SIZE)				// small operation
+	{
+		puts("small");
+		block_write(curr_block, build);
+		FD_Array[fd]->file->size = count;
+		rd.root_array[rd_loc].size = count;
+		block_write(sb.root_index,&rd);
+
+		return count;
+	}
+	else								// big operation
+	{
+		puts("big");
+		memcpy(block,build, BLOCK_SIZE);
+		block_write(curr_block, block);
+		memset(block, 0, BLOCK_SIZE);
+		write -= BLOCK_SIZE - (offset % 4096);
+		build += 4096;
+		next = fat[curr_block].fat_entry;
+
+		while(next != FAT_EOC)
+		{
+			curr_block = next;
+
+			if(write < 4096)				// last block
+			{
+				memcpy(block, build, write);
+				block_write(curr_block, block);
+				FD_Array[fd]->file->size = count;
+				return count;
+			}
+			else
+			{
+				memcpy(block,build, BLOCK_SIZE);
+				block_write(curr_block, block);
+				memset(block, 0, BLOCK_SIZE);
+				write -= BLOCK_SIZE - (offset % 4096);
+				build += 4096;
+			}
+		
+			next = fat[curr_block].fat_entry;
+		}
+		FD_Array[fd]->file->size = count;
+		return count;
+//		next = find_fat_free();
+		
+	}
+
 
 // small operations
-// count and sizeof(buf) < block_size
-	// offset vs no offset
-		// no EOC or find_free_fat calls
+// count + offset < block_size == small op
+	// no EOC or find_free_fat calls
+
+
 
 
 // big operations
+// count + offset > block_size
 // count and sizeof(buf) > block_size
-// floor(count || sizeof(buf) ) + offset < filesize
 	// offset vs no offset
 		// iterate through fat
 
-// extensions	offset == filesize || floor(count || sizeof(buf)) + offset > filesize is a possibility
-// count and sizeof(buf) < block_size
+// extensions	offset >= filesize || count + offset > filesize is a possibility
 // floor(count || sizeof(buf) ) + offset >= filesize
 	// offset vs no offset
 	// call find_fat_free and update EOC accordingly
 
 
 
-
+//count + offset > block_size > count + offset > filesize
 
 /*	if(offset == 0)
 	{
@@ -539,31 +624,36 @@ int fs_read(int fd, void *buf, size_t count)
 		return -1;
 	}
 
-	if(FD_Array[fd]->offset > BLOCK_SIZE * sb->FAT_blocks || FD_Array[fd]->offset > FD_Array[fd]->file->size)
+	if(FD_Array[fd]->offset > BLOCK_SIZE * sb.FAT_blocks || FD_Array[fd]->offset > FD_Array[fd]->file->size)
 	{
 		return 0;
 	}
 
 	int curr_block, read = 0;
 	char* buffer = malloc(BLOCK_SIZE) ;
-	char* build = malloc(BLOCK_SIZE * sb->FAT_blocks);
+	char* build = malloc(BLOCK_SIZE * sb.FAT_blocks);
 
 	curr_block = FD_Array[fd]->file->index;
-	block_read(sb->start_index + curr_block, (void*)build);
+	printf("curr_block: %d\n", curr_block);
+
+	block_read(sb.start_index + curr_block, (void*)build);
+
+	read = strlen(build);
 
 	curr_block = fat[curr_block].fat_entry;
+
+	printf("curr_block: %d\n", curr_block);
 
 
 	while(curr_block != FAT_EOC)
 	{	
-		block_read(sb->start_index + curr_block, (void*)buffer);
+		block_read(sb.start_index + curr_block, (void*)buffer);
 		read += strlen(buffer);
 		strcat(build,buffer);
 		memset(buffer, 0, BLOCK_SIZE);
 		curr_block = fat[curr_block].fat_entry;
-
 		
-		if(curr_block >= BLOCK_SIZE *sb->FAT_blocks)
+		if(curr_block >= BLOCK_SIZE * sb.FAT_blocks)
 		{
 			break;
 		}
@@ -575,6 +665,8 @@ int fs_read(int fd, void *buf, size_t count)
 	{
 		memcpy(buf, (void*)build, count);
 		fs_lseek(fd, FD_Array[fd]->offset + count);
+
+		free(build);
 		return count;
 	}
 	else
@@ -582,8 +674,10 @@ int fs_read(int fd, void *buf, size_t count)
 		read -= FD_Array[fd]->offset;
 		memcpy(buf, (void*)build, read);
 		fs_lseek(fd, FD_Array[fd]->offset + read);
+
+		free(buffer);
 		return read;
 	}
 	
 	
-}
+}	
