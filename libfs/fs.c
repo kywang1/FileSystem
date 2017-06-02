@@ -472,6 +472,8 @@ int fs_write(int fd, void *buf, size_t count)
 		}
 		fat_write();
 		block_write(sb.root_index, rd.root_array);
+//		free(block);
+//		free(build);
 		return count;
 	}
 
@@ -496,6 +498,8 @@ int fs_write(int fd, void *buf, size_t count)
 				}
 				fat_write();
 				block_write(sb.root_index, rd.root_array);
+//				free(block);
+//				free(build);
 				return count;
 			}
 		}
@@ -530,6 +534,8 @@ int fs_write(int fd, void *buf, size_t count)
 			}
 			fat_write();
 			block_write(sb.root_index, rd.root_array);
+//			free(build);
+//			free(block);
 			return count;
 		}
 		curr_block = next;
@@ -553,7 +559,9 @@ int fs_write(int fd, void *buf, size_t count)
 
 		block_write(sb.root_index, rd.root_array);
 		fat_write();
-
+//		free(last_block);
+//		free(block);
+//		free(build);
 		return wrote;
 	}
 
@@ -612,7 +620,8 @@ int fs_read(int fd, void *buf, size_t count)
 		memcpy(buf, (void*)build, count);
 		fs_lseek(fd, FD_Array[fd]->offset + count);
 
-		free(build);
+//		free(build);
+//		free(buffer);
 		return count;
 	}
 	else
@@ -621,7 +630,8 @@ int fs_read(int fd, void *buf, size_t count)
 		memcpy(buf, (void*)build, read);
 		fs_lseek(fd, FD_Array[fd]->offset + read);
 
-		free(buffer);
+//		free(buffer);
+//		free(build);
 		return read;
 	}
 	
