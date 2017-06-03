@@ -55,9 +55,20 @@ RD rd;
 int error_check(void)
 {
 	sb.signature[8] = '\0';
-	if(strncmp(sb.signature, "ECS150FS", strlen(sb.signature)) != 0 || sb.block_total + sb.FAT_blocks + 2 != block_disk_count() || sb.root_index - sb.FAT_blocks != 1 || sb.start_index - sb.root_index != 1)
+	if(strncmp(sb.signature, "ECS150FS", strlen(sb.signature)) != 0 )
 	{
-		puts("error");
+		return -1;
+	}
+	if(sb.data_blocks + sb.FAT_blocks + 2 != block_disk_count())
+	{
+		return -1;
+	}
+	if(sb.root_index - sb.FAT_blocks != 1)
+	{	
+		return -1;
+	}
+	if(sb.start_index - sb.root_index != 1)
+	{
 		return -1;
 	}
 
@@ -88,13 +99,6 @@ int fs_mount(const char *diskname)
 	{
 		block_read(1 + i,(void*)fat + i*(BLOCK_SIZE));
 	}
-
-	printf("fat[1].fat_entry: %d\n",fat[1].fat_entry);
-	printf("fat[2].fat_entry: %d\n",fat[2].fat_entry);
-	printf("fat[3].fat_entry: %d\n",fat[3].fat_entry);
-	printf("fat[4].fat_entry: %d\n",fat[4].fat_entry);
-	printf("fat[5].fat_entry: %d\n",fat[5].fat_entry);
-	printf("fat[6].fat_entry: %d\n",fat[6].fat_entry);
 
 	for(int i = 0; i < sb.data_blocks; i++)
 	{
@@ -166,21 +170,6 @@ int find_free_fat(int curr_index)
 	return -1;
 }
 
-void fat_delete(int index)
-{
-	int curr_index = index, next = 0;
-	char empty_block[4096];
-	memset(empty_block, 0, 4096);
-
-	while(curr_index != FAT_EOC)
-	{
-		next = fat[curr_index].fat_entry;
-		fat[curr_index].fat_entry = 0;
-		block_write(sb.start_index + curr_index, empty_block);
-		curr_index = next;
-	}	
-}
-
 void fat_write()
 {
 	for(int i = 0; i < sb.FAT_blocks; i++)
@@ -188,6 +177,24 @@ void fat_write()
 		block_write(1 + i,(void*)fat + i*(BLOCK_SIZE));
 	}
 }
+
+void fat_delete(int index)
+{
+	int curr_index = index, next = 0;
+	char empty_block[BLOCK_SIZE];
+	memset(empty_block, 0, BLOCK_SIZE);
+
+	while(curr_index != FAT_EOC)
+	{
+		next = fat[curr_index].fat_entry;
+		fat[curr_index].fat_entry = 0;
+		block_write(sb.start_index + curr_index, empty_block);
+		curr_index = next;
+	}
+	fat_write();
+}
+
+
 
 int fs_create(const char *filename)
 {
@@ -220,7 +227,6 @@ int fs_create(const char *filename)
 		{
 			if(strcmp(rd.root_array[i].filename, filename) == 0)
 			{
-				puts("dup");
 				return -1;
 			}
 		}
@@ -232,7 +238,6 @@ int fs_create(const char *filename)
 
 		if(rd_free_index == 128)
 		{
-			puts("max");
 			return -1;
 		}
 	}
@@ -241,9 +246,7 @@ int fs_create(const char *filename)
 	rd.root_array[rd_free_index].index = FAT_EOC;
 	strcpy(rd.root_array[rd_free_index].filename, filename);
 
-//	fat[fat_free_index].fat_entry = FAT_EOC;
 	rootFree--;
-//	fatFree--;
 	
 	block_write(sb.root_index,&rd);
 	fat_write();
@@ -405,6 +408,8 @@ int fs_lseek(int fd, size_t offset)
 int fs_write(int fd, void *buf, size_t count)
 {
 	int curr_block, blocks_left = (count / BLOCK_SIZE), wrote = 0, size_flag = 0, next = 0;
+	int blockReverse = 0;
+	int buildReverse = 0;
 
 
 	if(error_check() == -1 || fd < 0 || fd >= 32 )
@@ -423,7 +428,6 @@ int fs_write(int fd, void *buf, size_t count)
 	{
 		curr_block = find_free_fat(-1);
 		FD_Array[fd]->file->index = curr_block;
-		printf("curr: %d\n", curr_block);
 	}
 	else
 	{
@@ -434,16 +438,15 @@ int fs_write(int fd, void *buf, size_t count)
 	{
 		return 0;
 	}
-	printf("blocks %d\n", blocks_left);
 
 	char* build = malloc(BLOCK_SIZE * sb.FAT_blocks);
 	char* block = malloc(BLOCK_SIZE);
 
 	if(FD_Array[fd]->file->size != 0)
 	{
-		block_read(sb.start_index + curr_block, build);
-		build += offset;
-		strcat(build, buf);
+		block_read(sb.start_index + curr_block, block);
+		memcpy(build, block, offset % BLOCK_SIZE);
+		memcpy(build + (offset % BLOCK_SIZE), buf, count);
 		size_flag = 1;
 	}
 	else
@@ -453,6 +456,7 @@ int fs_write(int fd, void *buf, size_t count)
 
 	memcpy(block, build, BLOCK_SIZE);
 	build += BLOCK_SIZE;
+	buildReverse += BLOCK_SIZE;
 
 	block_write(sb.start_index + curr_block, block);
 	memset(block, 0, BLOCK_SIZE);
@@ -472,8 +476,11 @@ int fs_write(int fd, void *buf, size_t count)
 		}
 		fat_write();
 		block_write(sb.root_index, rd.root_array);
-//		free(block);
-//		free(build);
+
+		block -= blockReverse;
+		build -= buildReverse; 
+		free(block);
+		free(build);
 		return count;
 	}
 
@@ -498,8 +505,11 @@ int fs_write(int fd, void *buf, size_t count)
 				}
 				fat_write();
 				block_write(sb.root_index, rd.root_array);
-//				free(block);
-//				free(build);
+
+				block -= blockReverse;
+				buildReverse -= buildReverse;
+				free(block);
+				free(build);
 				return count;
 			}
 		}
@@ -507,6 +517,7 @@ int fs_write(int fd, void *buf, size_t count)
 		curr_block = next;
 		memcpy(block, build, BLOCK_SIZE);
 		build += BLOCK_SIZE;
+		buildReverse += BLOCK_SIZE;
 
 		block_write(sb.start_index + curr_block, block);
 		memset(block, 0, BLOCK_SIZE);
@@ -534,18 +545,21 @@ int fs_write(int fd, void *buf, size_t count)
 			}
 			fat_write();
 			block_write(sb.root_index, rd.root_array);
-//			free(build);
-//			free(block);
+			//free(build);
+			//free(block);
 			return count;
 		}
 		curr_block = next;
 		char* last_block = malloc(BLOCK_SIZE);
 		block_read(sb.start_index + curr_block, last_block);
 		last_block += count - wrote;
-		strcat(build, last_block);
+
+		memcpy(build + count - wrote, last_block, BLOCK_SIZE - (count - wrote));
 
 		block_write(sb.start_index + curr_block, build);
-		wrote += count - wrote;
+		last_block-= count - wrote;
+
+		wrote = count;
 		fat[curr_block].fat_entry = FAT_EOC;
 
 		if(size_flag)
@@ -559,9 +573,12 @@ int fs_write(int fd, void *buf, size_t count)
 
 		block_write(sb.root_index, rd.root_array);
 		fat_write();
-//		free(last_block);
-//		free(block);
-//		free(build);
+
+		build -= buildReverse;
+		block -= blockReverse;
+		free(last_block);
+		free(block);
+		free(build);
 		return wrote;
 	}
 
@@ -586,54 +603,62 @@ int fs_read(int fd, void *buf, size_t count)
 		return 0;
 	}
 
-	int curr_block, read = 0;
-	char* buffer = malloc(BLOCK_SIZE) ;
+	int curr_block, read = 0, blocks_left = (count / BLOCK_SIZE);
 	char* build = malloc(BLOCK_SIZE * sb.FAT_blocks);
 
 	curr_block = FD_Array[fd]->file->index;
 
 	block_read(sb.start_index + curr_block, (void*)build);
 
-
-	read = strlen(build);
-
-	curr_block = fat[curr_block].fat_entry;
-
-	while(curr_block != FAT_EOC)
-	{	
-		block_read(sb.start_index + curr_block, (void*)buffer);
-		read += strlen(buffer);
-		strcat(build,buffer);
-		memset(buffer, 0, BLOCK_SIZE);
-		curr_block = fat[curr_block].fat_entry;
-		
-		if(curr_block >= BLOCK_SIZE * sb.FAT_blocks)
-		{
-			break;
-		}
-	}
-
-	build = build + FD_Array[fd]->offset;
-
-	if(read > count)
+	if(FD_Array[fd]->file->size < BLOCK_SIZE)
 	{
-		memcpy(buf, (void*)build, count);
-		fs_lseek(fd, FD_Array[fd]->offset + count);
-
-//		free(build);
-//		free(buffer);
-		return count;
+		read = FD_Array[fd]->file->size;
 	}
 	else
 	{
-		read -= FD_Array[fd]->offset;
-		memcpy(buf, (void*)build, read);
-		fs_lseek(fd, FD_Array[fd]->offset + read);
+		read = BLOCK_SIZE;
+	}
 
-//		free(buffer);
-//		free(build);
+	if(count  % BLOCK_SIZE != 0)
+	{
+		blocks_left++;
+	}
+
+	blocks_left--;
+
+	if(blocks_left == 0)
+	{
+		fs_lseek(fd, FD_Array[fd]->file->size);
+		memcpy(buf, (void*)build, read);
 		return read;
 	}
-	
-	
+
+	while(blocks_left > 1)
+	{	
+		
+		curr_block = fat[curr_block].fat_entry;
+
+		if(curr_block == FAT_EOC)
+		{
+			fs_lseek(fd, FD_Array[fd]->file->size);
+			memcpy(buf, (void*)build, read);
+			return read;
+		}
+		block_read(sb.start_index + curr_block, (void*)(build + read));
+		read += BLOCK_SIZE;
+		blocks_left--;
+	}
+
+	curr_block = fat[curr_block].fat_entry;
+
+	block_read(sb.start_index + curr_block, (void*)(build + read));	
+
+
+	read = count;
+	build += FD_Array[fd]->offset;
+
+	memcpy(buf, (void*)build, count);
+	fs_lseek(fd, FD_Array[fd]->offset + read);
+	free(build);
+	return read;
 }	
