@@ -45,8 +45,6 @@ typedef struct FD
 }FD;
 
 int FD_Open;
-int rootFree;
-int fatFree;
 FAT* fat;
 FD* FD_Array[32];
 SB sb;
@@ -77,8 +75,6 @@ int error_check(void)
 
 int fs_mount(const char *diskname)
 {
-	rootFree = 0;
-	fatFree = 0;
 
 	if(block_disk_open(diskname) == -1)
 	{
@@ -100,23 +96,10 @@ int fs_mount(const char *diskname)
 		block_read(1 + i,(void*)fat + i*(BLOCK_SIZE));
 	}
 
-	for(int i = 0; i < sb.data_blocks; i++)
-	{
-		if(fat[i].fat_entry == 0)
-		{
-			fatFree++;
-		}
-	}
+
 
 	block_read(sb.root_index, &rd.root_array);
 
-	for(int i = 0; i < 128; i++)
-	{
-		if(rd.root_array[i].filename[0] == 0)
-		{
-			rootFree++;
-		}
-	}
 
 	FD_Open = 0;
 	for(int i = 0 ; i < 32; i++){
@@ -141,10 +124,32 @@ int fs_umount(void)
 
 int fs_info(void)
 {
+	int fatFree = 0;
+	int rootFree = 0;
 	if(error_check() == -1)
 	{
 		return -1;
 	}
+
+
+	for(int i = 0; i < sb.data_blocks; i++)
+	{
+		if(fat[i].fat_entry == 0)
+		{
+			fatFree++;
+		}
+	}
+
+	for(int i = 0; i < 128; i++)
+	{
+		if(rd.root_array[i].filename[0] == 0)
+		{
+			rootFree++;
+		}
+	}
+
+
+
 	printf("FS Info:\n");
 	printf("total_blk_count=%hu\n",sb.block_total + sb.FAT_blocks + 2);
 	printf("fat_blk_count=%hu\n", sb.FAT_blocks);
@@ -245,8 +250,6 @@ int fs_create(const char *filename)
 	rd.root_array[rd_free_index].size = 0;
 	rd.root_array[rd_free_index].index = FAT_EOC;
 	strcpy(rd.root_array[rd_free_index].filename, filename);
-
-	rootFree--;
 	
 	block_write(sb.root_index,&rd);
 	fat_write();
